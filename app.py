@@ -13,14 +13,12 @@ sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
 import csv
 import json
-import webbrowser
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse
 from src.pipeline import run_pipeline
 from src.assistant.interactive_qa import ShippingAssistantQA
 from src.rag.context_store import load_context_notes
 from tests.eval_harness import run_evaluation
-from src.eval.cost_tracker import CostTracker
 
 
 PORT = 8000
@@ -32,6 +30,7 @@ HTML_PAGE = """<!DOCTYPE html>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FreightTiger | Smart Shipping Cost Assistant</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -59,7 +58,7 @@ HTML_PAGE = """<!DOCTYPE html>
             padding: 24px;
             min-height: 100vh;
         }
-        .container { max-width: 1400px; margin: 0 auto; }
+        .container { max-width: 1440px; margin: 0 auto; }
         
         /* Top Navigation Header */
         header {
@@ -132,11 +131,11 @@ HTML_PAGE = """<!DOCTYPE html>
         /* Layout Grid */
         .main-layout {
             display: grid;
-            grid-template-columns: 2fr 1fr;
+            grid-template-columns: 1.15fr 1fr;
             gap: 24px;
             margin-bottom: 24px;
         }
-        @media (max-width: 1024px) {
+        @media (max-width: 1100px) {
             .main-layout { grid-template-columns: 1fr; }
         }
 
@@ -145,6 +144,8 @@ HTML_PAGE = """<!DOCTYPE html>
             border: 1px solid var(--border);
             border-radius: 14px;
             padding: 20px;
+            display: flex;
+            flex-direction: column;
         }
         .panel-header {
             display: flex;
@@ -157,46 +158,75 @@ HTML_PAGE = """<!DOCTYPE html>
         .panel-title { font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
 
         /* Chart Canvas */
-        .chart-wrap { position: relative; height: 320px; width: 100%; }
+        .chart-wrap { position: relative; height: 380px; width: 100%; }
 
         /* Assistant Chat Box */
-        .chat-container { display: flex; flex-direction: column; height: 320px; }
+        .chat-container { display: flex; flex-direction: column; height: 420px; }
         .chat-history {
             flex: 1;
             overflow-y: auto;
-            padding: 8px;
+            padding: 12px;
             display: flex;
             flex-direction: column;
-            gap: 12px;
-            font-size: 13px;
+            gap: 16px;
+            font-size: 13.5px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 10px;
         }
         .chat-msg {
-            padding: 12px 14px;
-            border-radius: 10px;
-            max-width: 90%;
-            line-height: 1.45;
+            padding: 14px 16px;
+            border-radius: 12px;
+            max-width: 95%;
+            line-height: 1.55;
         }
         .msg-user {
             align-self: flex-end;
             background: #0284c7;
             color: #fff;
             border-bottom-right-radius: 2px;
+            font-weight: 500;
         }
         .msg-bot {
             align-self: flex-start;
-            background: var(--bg-card);
+            background: #1e293b;
             border: 1px solid var(--border);
             color: var(--text-main);
             border-bottom-left-radius: 2px;
-            white-space: pre-wrap;
-            font-family: 'Inter', sans-serif;
         }
+        .msg-bot h3 { font-size: 15px; margin-bottom: 8px; color: var(--accent); }
+        .msg-bot ul { margin-left: 18px; margin-bottom: 10px; }
+        .msg-bot li { margin-bottom: 4px; }
+        .msg-bot p { margin-bottom: 8px; }
+        .msg-bot code { font-family: 'JetBrains Mono', monospace; background: rgba(0,0,0,0.3); padding: 2px 5px; border-radius: 4px; }
+        .msg-bot hr { border: 0; border-top: 1px solid var(--border); margin: 12px 0; }
+
+        /* Suggested Prompts Chips */
+        .prompt-chips {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        .chip {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 11.5px;
+            color: var(--accent);
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .chip:hover {
+            background: var(--accent);
+            color: #090d16;
+            border-color: var(--accent);
+        }
+
         .chat-input-bar {
             display: flex;
             gap: 8px;
             margin-top: 12px;
-            padding-top: 12px;
-            border-top: 1px solid var(--border);
         }
         .chat-input {
             flex: 1;
@@ -239,9 +269,9 @@ HTML_PAGE = """<!DOCTYPE html>
             padding: 6px 12px;
             border-radius: 6px;
             font-size: 12px;
-            width: 200px;
+            width: 220px;
         }
-        .table-wrap { overflow-x: auto; max-height: 460px; }
+        .table-wrap { overflow-x: auto; max-height: 480px; }
         table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
         th {
             background: #1e293b;
@@ -333,16 +363,26 @@ HTML_PAGE = """<!DOCTYPE html>
             <!-- Right: Interactive Q&A Assistant -->
             <div class="panel">
                 <div class="panel-header">
-                    <div class="panel-title">💬 Live AI Assistant (Stretch Goal)</div>
+                    <div class="panel-title">💬 Live AI Assistant (Grounded RAG)</div>
                     <span class="badge badge-success">● Ready</span>
                 </div>
                 <div class="chat-container">
                     <div class="chat-history" id="chatHistory">
-                        <div class="chat-msg msg-bot">Hello! I am your Freight Cost Assistant. You can ask me questions about route anomalies, festival surcharges, diesel price hikes, or historical baselines.
-<br><br><em>Try: "Why did Ahmedabad-Mumbai spike in Jan 2025?" or "List all unexplained anomalies"</em></div>
+                        <div class="chat-msg msg-bot">
+                            <h3>👋 Welcome to Freight Cost Assistant</h3>
+                            <p>I monitor route costs, track trailing baselines, and cross-reference operational context notes to explain unexpected price rises.</p>
+                            <p><strong>Click a quick question below or type your own:</strong></p>
+                        </div>
                     </div>
+                    
+                    <div class="prompt-chips">
+                        <span class="chip" onclick="askQuick('Why did Ahmedabad-Mumbai spike in Jan 2025?')">💡 Ahmedabad-Mumbai Spike (Jan 2025)</span>
+                        <span class="chip" onclick="askQuick('What happened on Chennai-Bangalore in March 2025?')">💡 Chennai-Bangalore Floods (Mar 2025)</span>
+                        <span class="chip" onclick="askQuick('List all unexplained anomalies')">💡 List All Unexplained Anomalies</span>
+                    </div>
+
                     <div class="chat-input-bar">
-                        <input type="text" id="chatInput" class="chat-input" placeholder="Ask a question..." onkeydown="if(event.key==='Enter') sendQuestion()">
+                        <input type="text" id="chatInput" class="chat-input" placeholder="Ask a question (e.g. Why did Delhi-Jaipur rise in Nov 2024?)..." onkeydown="if(event.key==='Enter') sendQuestion()">
                         <button class="btn btn-primary" onclick="sendQuestion()">Ask</button>
                     </div>
                 </div>
@@ -389,7 +429,6 @@ HTML_PAGE = """<!DOCTYPE html>
             const resp = await fetch('/api/metrics');
             allData = await resp.json();
             
-            // Populate KPIs
             const unexplained = allData.filter(d => d.flagged === 'Yes');
             const justified = allData.filter(d => d.flagged && d.flagged.includes('justified'));
             
@@ -397,7 +436,6 @@ HTML_PAGE = """<!DOCTYPE html>
             document.getElementById('kpi-unexplained').innerText = unexplained.length;
             document.getElementById('kpi-justified').innerText = justified.length;
 
-            // Populate Route Select
             const routes = [...new Set(allData.map(d => d.route))];
             const select = document.getElementById('routeSelect');
             routes.forEach(r => {
@@ -514,6 +552,11 @@ HTML_PAGE = """<!DOCTYPE html>
             });
         }
 
+        function askQuick(text) {
+            document.getElementById('chatInput').value = text;
+            sendQuestion();
+        }
+
         async function sendQuestion() {
             const input = document.getElementById('chatInput');
             const q = input.value.trim();
@@ -539,7 +582,7 @@ HTML_PAGE = """<!DOCTYPE html>
             
             const botMsg = document.createElement('div');
             botMsg.className = 'chat-msg msg-bot';
-            botMsg.innerText = data.answer;
+            botMsg.innerHTML = marked.parse(data.answer);
             history.appendChild(botMsg);
             history.scrollTop = history.scrollHeight;
         }
