@@ -1,11 +1,12 @@
 # 🚚 FreightTiger Smart Shipping Cost Assistant
 ### *24-Hour AI Challenge — Software Engineering Intern (AI) Case Study*
 
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Streamlit%20Cloud-ff4b4b?style=for-the-badge&logo=streamlit)](https://ritesh-iiitn-smart-freight-monitor-streamlit-app-hrxkhq.streamlit.app/)
 [![Python Version](https://img.shields.io/badge/python-3.9+-38bdf8.svg)](https://www.python.org/)
-[![UI](https://img.shields.io/badge/UI-Streamlit-ff4b4b.svg)](https://streamlit.io/)
 [![Reproducibility](https://img.shields.io/badge/reproducibility-100%25%20(0%20diffs)-10b981.svg)]()
 [![Hallucination Rate](https://img.shields.io/badge/hallucination%20rate-0.0%25-10b981.svg)]()
 
+> 🔗 **Live Cloud Deployment**: [https://ritesh-iiitn-smart-freight-monitor-streamlit-app-hrxkhq.streamlit.app/](https://ritesh-iiitn-smart-freight-monitor-streamlit-app-hrxkhq.streamlit.app/)  
 > An enterprise-grade, guardrailed AI assistant designed to monitor freight shipping costs, compute rolling historical and peer baselines with mathematical rigor, detect anomalous price creep, and ground explanations in operational context notes using **Retrieval-Augmented Generation (RAG)** with strict **zero-hallucination causal validation**.
 
 ---
@@ -18,7 +19,7 @@
 5. [Evaluation Benchmark & Trust Verification](#5-evaluation-benchmark--trust-verification)
 6. [Reproducibility Audit Across Runs](#6-reproducibility-audit-across-runs)
 7. [Token Consumption & Pricing Ledger](#7-token-consumption--pricing-ledger)
-8. [Interactive Streamlit UI](#8-interactive-streamlit-ui)
+8. [Live Streamlit Web Application](#8-live-streamlit-web-application)
 9. [Project Layout & Code Structure](#9-project-layout--code-structure)
 10. [Quickstart & Execution Commands](#10-quickstart--execution-commands)
 11. [10-Minute Round 2 Walkthrough Guide](#11-10-minute-round-2-walkthrough-guide)
@@ -96,7 +97,7 @@ In freight logistics, companies pay carriers based on weight carried and distanc
 │                                 Output & Presentation Hub                                │
 │                                                                                          │
 │   • output/analysis_results.csv (Exact Grade-Tested Contract Format)                     │
-│   • Interactive Streamlit UI Dashboard (streamlit run streamlit_app.py)                  │
+│   • Live Streamlit App (https://ritesh-iiitn-smart-freight-monitor-streamlit-app-hrxkhq.streamlit.app/) │
 │   • Live Natural Language Q&A Assistant (CLI + Streamlit Chat)                           │
 │   • Automated Verification & Reproducibility Suite (3 Independent Passes)                │
 └──────────────────────────────────────────────────────────────────────────────────────────┘
@@ -226,10 +227,11 @@ To satisfy responsible AI grading (*"report total input tokens, total output tok
 
 ---
 
-## 8. Interactive Streamlit UI
+## 8. Live Streamlit Web Application
 
-The primary user interface is built using **Streamlit** for clean, pure-Python interactivity:
+🌐 **Live Deployed App**: [https://ritesh-iiitn-smart-freight-monitor-streamlit-app-hrxkhq.streamlit.app/](https://ritesh-iiitn-smart-freight-monitor-streamlit-app-hrxkhq.streamlit.app/)
 
+To run the application locally:
 ```bash
 streamlit run streamlit_app.py
 ```
@@ -301,7 +303,7 @@ python3 tests/eval_harness.py
 python3 src/assistant/interactive_qa.py "Why did Ahmedabad-Mumbai spike in January 2025?"
 python3 src/assistant/interactive_qa.py "Show all unexplained anomalies"
 
-# 5. Launch Primary Streamlit Interactive UI
+# 5. Launch Primary Streamlit Interactive UI Locally
 streamlit run streamlit_app.py
 ```
 
@@ -315,4 +317,4 @@ streamlit run streamlit_app.py
 | **2:00 - 4:00** | **Mathematical Rigor & Baselines** | Open `src/core/metrics.py`. Highlight the volume-weighted metric ($\frac{\sum \text{Cost}}{\sum \text{Tonnes} \times \text{Km}}$), strictly prior trailing 8-week baseline (zero lookahead), and peer route average excluding self. |
 | **4:00 - 6:30** | **RAG Guardrails & Anti-Hallucination** | Explain how deceptive notes (N004, N005, N006, N010) are handled. Show why `Delhi-Jaipur` and `Mumbai-Pune` are flagged `Yes` (unexplained) while `Ahmedabad-Mumbai` is marked `No (justified)` citing `N002`. |
 | **6:30 - 8:00** | **Evaluation & Reproducibility Proof** | Run `python3 tests/eval_harness.py` (100% accuracy, 0% hallucination) and `python3 src/eval/reproducibility.py` (0 diffs across 3 runs). |
-| **8:00 - 10:00**| **Live Streamlit UI Demo & Q&A** | Open `streamlit run streamlit_app.py`, demo the interactive charts, ask live questions in the chat panel, and take interviewer questions. |
+| **8:00 - 10:00**| **Live Streamlit UI Demo & Q&A** | Open the [Live Streamlit App](https://ritesh-iiitn-smart-freight-monitor-streamlit-app-hrxkhq.streamlit.app/), demo the interactive charts, ask live questions in the chat panel, and take interviewer questions. |
