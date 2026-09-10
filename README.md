@@ -2,9 +2,9 @@
 ### *24-Hour AI Challenge — Software Engineering Intern (AI) Case Study*
 
 [![Python Version](https://img.shields.io/badge/python-3.9+-38bdf8.svg)](https://www.python.org/)
+[![UI](https://img.shields.io/badge/UI-Streamlit-ff4b4b.svg)](https://streamlit.io/)
 [![Reproducibility](https://img.shields.io/badge/reproducibility-100%25%20(0%20diffs)-10b981.svg)]()
 [![Hallucination Rate](https://img.shields.io/badge/hallucination%20rate-0.0%25-10b981.svg)]()
-[![License](https://img.shields.io/badge/license-MIT-64748b.svg)]()
 
 > An enterprise-grade, guardrailed AI assistant designed to monitor freight shipping costs, compute rolling historical and peer baselines with mathematical rigor, detect anomalous price creep, and ground explanations in operational context notes using **Retrieval-Augmented Generation (RAG)** with strict **zero-hallucination causal validation**.
 
@@ -18,7 +18,7 @@
 5. [Evaluation Benchmark & Trust Verification](#5-evaluation-benchmark--trust-verification)
 6. [Reproducibility Audit Across Runs](#6-reproducibility-audit-across-runs)
 7. [Token Consumption & Pricing Ledger](#7-token-consumption--pricing-ledger)
-8. [Interactive Web UI & Natural Language Assistant](#8-interactive-web-ui--natural-language-assistant)
+8. [Interactive Streamlit UI](#8-interactive-streamlit-ui)
 9. [Project Layout & Code Structure](#9-project-layout--code-structure)
 10. [Quickstart & Execution Commands](#10-quickstart--execution-commands)
 11. [10-Minute Round 2 Walkthrough Guide](#11-10-minute-round-2-walkthrough-guide)
@@ -27,18 +27,18 @@
 
 ## 1. Problem Statement & Objectives
 
-In freight transportation, shippers pay logistics carriers based on weight carried and distance traversed ($\text{INR} / (\text{Tonne} \times \text{Km})$). Over time, shipping rates can escalate on specific corridors:
-* **Legitimate Drivers**: Fuel price hikes, monsoon detours, regional festival surcharges, toll revisions.
+In freight logistics, companies pay carriers based on weight carried and distance traversed ($\text{INR} / (\text{Tonne} \times \text{Km})$). Over time, shipping rates quietly creep up on specific corridors:
+* **Legitimate Drivers**: Fuel price hikes, monsoon detours, regional festival surcharges, toll plaza changes.
 * **Unjustified Creep**: Carrier rate hikes, artificial capacity constraints, or unverified surcharges.
 
-### Core Deliverables
-* **Deterministic Weekly Aggregation**: Normalize all shipments by corridor (`origin-destination`) and provided length bucket (`Short`, `Medium`, `Long`) into Monday–Sunday weekly windows.
+### Core Objectives & Deliverables
+* **Deterministic Weekly Aggregation**: Normalize all shipments by corridor (`origin-destination`) and provided length bucket (`Short`, `Medium`, `Long`) into Monday–Sunday weekly windows (`week_of`).
 * **Dual Baseline Tracking**:
   - **vs. Own History**: Trailing 8-week rolling average strictly prior to current week (zero lookahead).
   - **vs. Similar Routes**: Same-week peer route average across identical length buckets (excluding self).
 * **Grounded RAG Verification**: Query operational disruption notes (`context_notes.csv`) to corroborate price jumps.
 * **Strict Anti-Hallucination Guardrails**: Eliminate fabricated justifications; reject non-causal notes (e.g. routine maintenance with unaffected costs or absorbed compliance fees).
-* **Deterministic Output & Reproducibility**: 3 untouched runs on the same input must produce identical numbers, flags, and cited notes.
+* **Deterministic Output & Reproducibility**: 3 untouched runs on the same input produce identical numbers, flags, and cited notes.
 
 ---
 
@@ -96,8 +96,8 @@ In freight transportation, shippers pay logistics carriers based on weight carri
 │                                 Output & Presentation Hub                                │
 │                                                                                          │
 │   • output/analysis_results.csv (Exact Grade-Tested Contract Format)                     │
-│   • Interactive Web UI Dashboard (http://localhost:8000)                                 │
-│   • Live Natural Language Q&A Assistant (CLI + Web Chat)                                │
+│   • Interactive Streamlit UI Dashboard (streamlit run streamlit_app.py)                  │
+│   • Live Natural Language Q&A Assistant (CLI + Streamlit Chat)                           │
 │   • Automated Verification & Reproducibility Suite (3 Independent Passes)                │
 └──────────────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -226,19 +226,21 @@ To satisfy responsible AI grading (*"report total input tokens, total output tok
 
 ---
 
-## 8. Interactive Web UI & Natural Language Assistant
+## 8. Interactive Streamlit UI
 
-### Launch Web Dashboard
+The primary user interface is built using **Streamlit** for clean, pure-Python interactivity:
+
 ```bash
-python3 app.py
+streamlit run streamlit_app.py
 ```
-Open **`http://localhost:8000`** in your browser.
 
-### Key UI Features
-* **Executive KPI Cards**: Real-time counts of monitored route-weeks, unexplained spikes, justified events, and 0% hallucination rate.
-* **Interactive Chart.js Visualizer**: Time-series charts comparing route rates against historical baselines.
-* **Live AI Assistant Panel**: Natural language chat interface with quick suggestion chips.
-* **Causal Verification Table**: Filter by `All Rows`, `Flagged Spikes (Yes)`, or `Justified (No)`, with instant search.
+### Key UI Features:
+1. **Executive KPI Cards**: Real-time counts of monitored route-weeks, unexplained spikes, justified events, and 0% hallucination rate.
+2. **Interactive Chart View**: Multi-corridor line charts with dropdown route filters.
+3. **Conversational AI Assistant**: Chat panel with quick-action prompt buttons for live Q&A.
+4. **Searchable Anomaly Grid**: Filter records by status (`All`, `Unexplained Spikes`, `Justified`), with real-time column searching.
+5. **Causal Guardrails Matrix**: Complete transparency into all 10 context notes and their validation verdicts.
+6. **Live Verification Hub**: 1-click execution of the 3-pass reproducibility check and evaluation harness benchmark.
 
 ---
 
@@ -261,7 +263,8 @@ freighttiger/
 │   │   ├── explainer.py              # Grounded plain-English explanation generator
 │   │   └── llm_client.py             # Pluggable adapter (Local, Gemini, OpenAI)
 │   ├── assistant/
-│   │   └── interactive_qa.py         # Natural language Q&A assistant (CLI & Web)
+│   │   ├── interactive_qa.py         # Natural language Q&A assistant (CLI & Web)
+│   │   └── terminal_dashboard.py     # Interactive Terminal TUI Dashboard
 │   ├── eval/
 │   │   ├── cost_tracker.py           # Token usage and pricing auditor
 │   │   └── reproducibility.py        # 3-pass untouched run verification tool
@@ -271,12 +274,10 @@ freighttiger/
 │   ├── test_guardrails.py            # Unit tests for RAG guardrails & note filtering
 │   └── eval_harness.py               # Automated benchmark evaluation scorecard
 ├── scripts/
-│   ├── generate_sample_shipments.py  # Deterministic shipment dataset generator
-│   └── visualizer.py                 # Standalone visualizer generator
+│   └── generate_sample_shipments.py  # Deterministic shipment dataset generator
 ├── output/
-│   ├── analysis_results.csv          # Final grade-tested output CSV
-│   └── dashboard.html                # Standalone HTML dashboard
-├── app.py                            # Enterprise interactive Web Dashboard server
+│   └── analysis_results.csv          # Final grade-tested output CSV
+├── streamlit_app.py                  # Primary Streamlit Interactive Dashboard
 ├── requirements.txt                  # Python dependencies
 └── README.md                         # Comprehensive documentation & architecture guide
 ```
@@ -300,9 +301,8 @@ python3 tests/eval_harness.py
 python3 src/assistant/interactive_qa.py "Why did Ahmedabad-Mumbai spike in January 2025?"
 python3 src/assistant/interactive_qa.py "Show all unexplained anomalies"
 
-# 5. Launch Enterprise Web Dashboard
-python3 app.py
-# -> Open http://localhost:8000
+# 5. Launch Primary Streamlit Interactive UI
+streamlit run streamlit_app.py
 ```
 
 ---
@@ -315,4 +315,4 @@ python3 app.py
 | **2:00 - 4:00** | **Mathematical Rigor & Baselines** | Open `src/core/metrics.py`. Highlight the volume-weighted metric ($\frac{\sum \text{Cost}}{\sum \text{Tonnes} \times \text{Km}}$), strictly prior trailing 8-week baseline (zero lookahead), and peer route average excluding self. |
 | **4:00 - 6:30** | **RAG Guardrails & Anti-Hallucination** | Explain how deceptive notes (N004, N005, N006, N010) are handled. Show why `Delhi-Jaipur` and `Mumbai-Pune` are flagged `Yes` (unexplained) while `Ahmedabad-Mumbai` is marked `No (justified)` citing `N002`. |
 | **6:30 - 8:00** | **Evaluation & Reproducibility Proof** | Run `python3 tests/eval_harness.py` (100% accuracy, 0% hallucination) and `python3 src/eval/reproducibility.py` (0 diffs across 3 runs). |
-| **8:00 - 10:00**| **Live Interactive UI Demo & Q&A** | Open `http://localhost:8000`, show the live cost trend charts, ask questions via the live assistant panel, and take interviewer questions. |
+| **8:00 - 10:00**| **Live Streamlit UI Demo & Q&A** | Open `streamlit run streamlit_app.py`, demo the interactive charts, ask live questions in the chat panel, and take interviewer questions. |
