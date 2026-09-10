@@ -34,3 +34,4 @@ htmlcov/
 *.log
 .chroma/
 chroma_db/
+output/reproducibility_test/

@@ -43,49 +43,40 @@ def generate_shipments(start_date: str = "2024-01-01", end_date: str = "2025-11-
         week_monday = get_monday(current_dt)
         week_str = week_monday.strftime("%Y-%m-%d")
         
-        # Determine active route modifiers based on date & known events
         for route in ROUTES_CONFIG:
             origin = route["origin"]
             dest = route["destination"]
             route_name = f"{origin}-{dest}"
             base_cptk = route["base_cptk"]
             
-            # Default multiplier with small organic weekly fluctuation
-            multiplier = 1.0 + random.uniform(-0.03, 0.03)
+            # Default organic weekly fluctuation
+            multiplier = 1.0 + random.uniform(-0.02, 0.02)
             
-            # Event 1: Delhi-Jaipur spike on week 2024-11-11 (Unexplained Anomaly)
+            # Route-specific events checked FIRST
             if route_name == "Delhi-Jaipur" and week_str == "2024-11-11":
-                multiplier = 1.41
+                multiplier = 1.41  # +35-40% spike (Unexplained)
                 
-            # Event 2: Ahmedabad-Mumbai festival spike on week 2025-01-20 (Matches N002)
             elif route_name == "Ahmedabad-Mumbai" and week_str == "2025-01-20":
-                multiplier = 1.34
+                multiplier = 1.34  # +29-34% festival spike (N002)
                 
-            # Event 3: Chennai-Bangalore floods 2025-02-24 to 2025-03-08 (Matches N001)
             elif route_name == "Chennai-Bangalore" and week_str in ["2025-02-24", "2025-03-03"]:
-                multiplier = 1.38
+                multiplier = 1.38  # +30-38% flood disruption (N001)
                 
-            # Event 4: Nationwide Diesel hike starting 2025-05-05 (Matches N003)
-            elif week_str >= "2025-05-05":
-                multiplier += 0.06
-                
-            # Event 5: Mumbai-Pune unexplained spike on week 2025-09-15
             elif route_name == "Mumbai-Pune" and week_str == "2025-09-15":
-                multiplier = 1.25
+                multiplier = 1.32  # Spike on week 2025-09-15, close to N006 report (Unexplained)
                 
-            # Event 6: Mumbai-Delhi minor delay (N005, 2024-07-29) - costs unaffected
             elif route_name == "Mumbai-Delhi" and week_str == "2024-07-29":
-                multiplier = 1.01  # Normal, unaffected
+                multiplier = 1.01  # N005 minor maintenance (costs unaffected)
                 
-            # Number of shipments for this route on current day
-            # Let's generate 1-3 shipments per day per route
+            elif week_str >= "2025-05-05":
+                multiplier += 0.06  # Nationwide diesel price hike (N003)
+                
             num_shipments = random.randint(1, 3)
             for _ in range(num_shipments):
                 dist = round(route["distance_km"] + random.uniform(-4.0, 4.0), 1)
                 qty = round(random.uniform(10.0, 25.0), 1)
                 
-                # Shipment specific cptk
-                shipment_cptk = base_cptk * multiplier * (1.0 + random.uniform(-0.02, 0.02))
+                shipment_cptk = base_cptk * multiplier * (1.0 + random.uniform(-0.015, 0.015))
                 freight_cost = int(round(shipment_cptk * qty * dist))
                 
                 shipment_id = f"SHP{shipment_counter:05d}"
@@ -106,7 +97,6 @@ def generate_shipments(start_date: str = "2024-01-01", end_date: str = "2025-11-
         
         current_dt += timedelta(days=1)
         
-    # Write to CSV
     fieldnames = [
         "shipment_id", "origin", "destination", "route_type",
         "material", "quantity_tonnes", "distance_km", "freight_cost_inr",
