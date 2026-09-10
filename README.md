@@ -107,144 +107,48 @@ In freight logistics, companies pay carriers based on weight carried and distanc
 
 ## 3. Mathematical Formulations & Baselines
 
-To monitor freight shipping rate creep accurately and fairly across diverse routes and haul lengths, the system implements a **deterministic four-step computation pipeline**:
-
-1. **Time-Series Alignment (`week_of`)**: Standardizes daily shipment timestamps into uniform Monday-to-Sunday weekly windows.
-2. **Normalized Work Metric (`cost_per_tonne_km`)**: Evaluates freight cost against total payload work (weight × distance).
-3. **Internal Trend Baseline (`vs_own_history`)**: Measures rate changes against a trailing 8-week historical window (strictly zero lookahead).
-4. **Market Cohort Baseline (`vs_similar_routes`)**: Benchmarks against peer routes of identical distance classification in the same week.
-
----
-
-### A. Weekly Time-Series Grouping (`week_of`)
-
-* **Objective**: Partition continuous daily shipments into non-overlapping Monday–Sunday weekly cycles.
-* **Definition**: `week_of` represents the ISO date (`YYYY-MM-DD`) corresponding to that week's Monday.
+### A. Weekly Time-Series Grouping
+Shipments are partitioned into Monday–Sunday weekly buckets where `week_of` represents the ISO date of that week's Monday:
 
 $$
-\text{week\_of} = \text{Shipment Date} - (\text{Weekday Index} \times 1\text{ Day}) \quad \text{where } \text{Monday} = 0, \, \dots, \, \text{Sunday} = 6
+\text{week\_of} = \text{date} - (\text{weekday} \times 1\text{ day})
 $$
-
-> **💡 Intuitive Example:**
-> - A shipment on **Wednesday, Jan 15, 2025** (`weekday = 2`) rolls back 2 days $\rightarrow$ `2025-01-13` (Monday).
-> - A shipment on **Sunday, Jan 19, 2025** (`weekday = 6`) rolls back 6 days $\rightarrow$ `2025-01-13` (Monday).
-
----
 
 ### B. Normalized Cost per Tonne-Km ($\text{CPTK}$)
-
-* **Objective**: Eliminate distortions caused by differences in truckload sizes or journey lengths. Simply averaging invoice totals is misleading because transporting 50 tonnes over 1,000 km represents substantially more logistics work than transporting 2 tonnes over 50 km.
-* **Definition**: Total freight spend divided by total tonne-kilometers across all shipments on corridor $r$ in week $w$.
+To avoid distorted averages from lightweight or short trips, we compute the volume-weighted metric across all shipments in route $r$ and week $w$:
 
 $$
-\text{CPTK}_{r, w} = \frac{\text{Total Freight Cost (INR)}}{\text{Total Transportation Work (Tonnes} \times \text{Km})} = \frac{\sum_{i \in \mathcal{S}_{r, w}} \text{FreightCost}_i}{\sum_{i \in \mathcal{S}_{r, w}} (\text{Quantity}_i \times \text{Distance}_i)}
+\text{CPTK}_{r, w} = \frac{\sum_{i \in \mathcal{S}_{r, w}} \text{freight\_cost\_inr}_i}{\sum_{i \in \mathcal{S}_{r, w}} (\text{quantity\_tonnes}_i \times \text{distance\_km}_i)}
 $$
 
-* **Rounding Rule**: Rounded to **2 decimal places** (e.g. `3.45`).
+### C. Comparison Baselines (Strict Grading Contract)
 
-> **💡 Step-by-Step Worked Example:**
-> Suppose Corridor **Mumbai–Pune** has 2 shipments in a given week:
-> - **Shipment 1**: 20 Tonnes over 150 km @ ₹9,000 $\rightarrow \text{Work} = 20 \times 150 = 3,000 \text{ Tonne-Km}$
-> - **Shipment 2**: 10 Tonnes over 150 km @ ₹6,000 $\rightarrow \text{Work} = 10 \times 150 = 1,500 \text{ Tonne-Km}$
->
-> $$
-> \text{Total Spend} = 9,000 + 6,000 = ₹15,000 \quad \Big| \quad \text{Total Work} = 3,000 + 1,500 = 4,500 \text{ Tonne-Km}
-> $$
-> $$
-> \text{CPTK} = \frac{15,000}{4,500} = \mathbf{₹3.33} \text{ per Tonne-Km}
-> $$
-
----
-
-### C. Baseline 1: vs. Own History (`vs_own_history`)
-
-* **Objective**: Detect whether a route's shipping rate has spiked relative to its own recent historical baseline.
-* **Rolling Window**: Trailing arithmetic mean over the prior $K$ weeks ($1 \le K \le 8$), **strictly excluding the current week** to prevent look-ahead bias and data leakage.
+#### 1. Baseline 1: vs. Own History (`vs_own_history`)
+Evaluates the trailing rolling average over the prior $K$ weeks ($1 \le K \le 8$), strictly excluding the current week $w$:
 
 $$
-\text{HistAvg}_{r, w} = \frac{1}{K} \sum_{k=1}^{K} \text{CPTK}_{r, w-k} \quad \text{where } K = \min(8, \text{number of prior available weeks})
+\text{HistAvg}_{r, w} = \frac{1}{K} \sum_{k=1}^{K} \text{CPTK}_{r, w-k} \quad \text{where } K = \min(8, \text{prior\_available\_weeks})
 $$
 
 $$
 \Delta \text{Hist\%} = \left( \frac{\text{CPTK}_{r, w} - \text{HistAvg}_{r, w}}{\text{HistAvg}_{r, w}} \right) \times 100
 $$
 
-* **Strict Contract Output Format**: Formatted with explicit sign and 1 decimal place:
-  - `+35.5% vs this route's past average`
-  - `-12.3% vs this route's past average`
-* **Edge Cases & Zero Padding**:
-  - **Initial Week** ($0$ prior weeks available): Defaults to `+0.0% vs this route's past average`.
-  - **$< 8$ Prior Weeks**: Averages all available prior weeks ($1 \le K < 8$).
+* **Contract Output**: Formatted with sign and 1 decimal place: `+35.5% vs this route's past average`.
+* **Zero Padding**: If $<8$ prior weeks exist, only available prior weeks are averaged; for the initial week of a route, `+0.0% vs this route's past average` is recorded.
 
-> **💡 Step-by-Step Worked Example:**
-> - Current Week CPTK: **₹4.50**
-> - Trailing 8-Week Historical Average ($\text{HistAvg}$): **₹3.00**
-> - Percentage Shift: $\frac{4.50 - 3.00}{3.00} \times 100 = \mathbf{+50.0\%}$
-> - Contract Result: `+50.0% vs this route's past average`
-
----
-
-### D. Baseline 2: vs. Similar Routes (`vs_similar_routes`)
-
-* **Objective**: Benchmark a corridor against market peers operating over comparable haul distances in the **exact same week**, isolating local corridor inflation from broader macroeconomic shifts (e.g., nationwide fuel hikes).
-* **Peer Cohort Grouping**: All *other* corridors sharing the same `route_type` length category:
-  - **Short**: $< 500\text{ km}$
-  - **Medium**: $500\text{--}1,200\text{ km}$
-  - **Long**: $> 1,200\text{ km}$
-* **Peer Group Average**: Arithmetic mean of CPTK across all peer routes in that week, **strictly excluding the target route itself**:
+#### 2. Baseline 2: vs. Similar Routes (`vs_similar_routes`)
+Evaluates the average rate across all *other* routes $\mathcal{P}$ sharing the same `route_type` (`Short`, `Medium`, `Long`) in the exact same week $w$, strictly excluding route $r$:
 
 $$
-\text{PeerAvg}_{r, w} = \frac{1}{|\mathcal{P}_{w}| - 1} \sum_{p \in \mathcal{P}_{w}, \, p \ne r} \text{CPTK}_{p, w} \quad (\text{where } \mathcal{P}_w \text{ is the set of all routes in that cohort})
+\text{PeerAvg}_{r, w} = \frac{1}{|\mathcal{P}_{w}| - 1} \sum_{p \in \mathcal{P}_{w}, p \ne r} \text{CPTK}_{p, w}
 $$
 
 $$
 \Delta \text{Peer\%} = \left( \frac{\text{CPTK}_{r, w} - \text{PeerAvg}_{r, w}}{\text{PeerAvg}_{r, w}} \right) \times 100
 $$
 
-* **Strict Contract Output Format**: Formatted with explicit sign and 1 decimal place:
-  - `+21.0% vs similar-length routes this week`
-  - `-5.4% vs similar-length routes this week`
-* **Edge Case**: If a corridor is the only route operating in its distance category that week ($|\mathcal{P}_w| = 1$), it defaults to `+0.0% vs similar-length routes this week`.
-
-> **💡 Step-by-Step Worked Example:**
-> In week `2025-02-03`, there are 3 routes in the **Short** cohort:
-> - **Target Route (Delhi–Jaipur)**: $\text{CPTK} = \mathbf{₹4.00}$
-> - **Peer Route 1 (Mumbai–Pune)**: $\text{CPTK} = ₹3.00$
-> - **Peer Route 2 (Chennai–Bangalore)**: $\text{CPTK} = ₹2.00$
->
-> $$
-> \text{Peer Average (excluding Delhi-Jaipur)} = \frac{3.00 + 2.00}{2} = \mathbf{₹2.50}
-> $$
-> $$
-> \Delta \text{Peer\%} = \left(\frac{4.00 - 2.50}{2.50}\right) \times 100 = \mathbf{+60.0\%}
-> $$
-> - Contract Result: `+60.0% vs similar-length routes this week`
-
----
-
-### E. Anomaly Escalation & Trigger Rules
-
-A route-week is flagged as a candidate cost spike and routed to the AI/RAG verification pipeline when it meets either of the following conditions:
-
-| Trigger Rule | Threshold Condition | Operational Rationale |
-| :--- | :--- | :--- |
-| **Primary Trigger (Historical Spike)** | $\Delta \text{ vs. Own History} \ge \mathbf{+8.0\%}$ | Corridor cost is noticeably higher than its own recent 8-week norm. |
-| **Secondary Trigger (Peer Divergence)** | $\Delta \text{ vs. Similar Routes} \ge \mathbf{+15.0\%}$ <br> *AND* $\Delta \text{ vs. Own History} \ge \mathbf{+5.0\%}$ | Corridor cost significantly exceeds peer market rates while simultaneously trending upward. |
-
----
-
-### F. Output Schema & Specification Summary
-
-| CSV Column Name | Mathematical Source / Definition | Data Type & Precision | Concrete Example Output |
-| :--- | :--- | :--- | :--- |
-| `route` | `origin-destination` corridor identifier | String (`Orig-Dest`) | `Chennai-Bangalore` |
-| `week_of` | ISO date of Monday in the shipment week | String (`YYYY-MM-DD`) | `2025-02-24` |
-| `cost_per_tonne_km` | Total Spend $\div$ Total Tonne-Km | Float (2 decimal places) | `3.45` |
-| `vs_own_history` | Percentage change vs trailing 8-week mean | Signed String (1 decimal place) | `+35.5% vs this route's past average` |
-| `vs_similar_routes` | Percentage change vs same-week cohort mean | Signed String (1 decimal place) | `+21.0% vs similar-length routes this week` |
-| `flagged` | Anomaly status after causal verification | String (`Yes`, `No (justified)`, `No`) | `No (justified)` |
-| `matched_note_id` | Validated causal context note ID (if any) | String (`N001` - `N010`, or empty) | `N001` |
-| `reason` | Factual explanation of cost trend or disruption | String (Plain English explanation) | `Highway flooding caused detour...` |
+* **Contract Output**: Formatted with sign and 1 decimal place: `+21.0% vs similar-length routes this week`.
 
 ---
 
