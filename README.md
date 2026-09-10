@@ -103,54 +103,6 @@ In freight logistics, companies pay carriers based on weight carried and distanc
 └──────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
----
-
-## 3. Mathematical Formulations & Baselines
-
-### A. Weekly Time-Series Grouping
-Shipments are partitioned into Monday–Sunday weekly buckets where `week_of` represents the ISO date of that week's Monday:
-
-$$
-\text{week\_of} = \text{date} - (\text{weekday} \times 1\text{ day})
-$$
-
-### B. Normalized Cost per Tonne-Km ($\text{CPTK}$)
-To avoid distorted averages from lightweight or short trips, we compute the volume-weighted metric across all shipments in route $r$ and week $w$:
-
-$$
-\text{CPTK}_{r, w} = \frac{\sum_{i \in \mathcal{S}_{r, w}} \text{freight\_cost\_inr}_i}{\sum_{i \in \mathcal{S}_{r, w}} (\text{quantity\_tonnes}_i \times \text{distance\_km}_i)}
-$$
-
-### C. Comparison Baselines (Strict Grading Contract)
-
-#### 1. Baseline 1: vs. Own History (`vs_own_history`)
-Evaluates the trailing rolling average over the prior $K$ weeks ($1 \le K \le 8$), strictly excluding the current week $w$:
-
-$$
-\text{HistAvg}_{r, w} = \frac{1}{K} \sum_{k=1}^{K} \text{CPTK}_{r, w-k} \quad \text{where } K = \min(8, \text{prior\_available\_weeks})
-$$
-
-$$
-\Delta \text{Hist\%} = \left( \frac{\text{CPTK}_{r, w} - \text{HistAvg}_{r, w}}{\text{HistAvg}_{r, w}} \right) \times 100
-$$
-
-* **Contract Output**: Formatted with sign and 1 decimal place: `+35.5% vs this route's past average`.
-* **Zero Padding**: If $<8$ prior weeks exist, only available prior weeks are averaged; for the initial week of a route, `+0.0% vs this route's past average` is recorded.
-
-#### 2. Baseline 2: vs. Similar Routes (`vs_similar_routes`)
-Evaluates the average rate across all *other* routes $\mathcal{P}$ sharing the same `route_type` (`Short`, `Medium`, `Long`) in the exact same week $w$, strictly excluding route $r$:
-
-$$
-\text{PeerAvg}_{r, w} = \frac{1}{|\mathcal{P}_{w}| - 1} \sum_{p \in \mathcal{P}_{w}, p \ne r} \text{CPTK}_{p, w}
-$$
-
-$$
-\Delta \text{Peer\%} = \left( \frac{\text{CPTK}_{r, w} - \text{PeerAvg}_{r, w}}{\text{PeerAvg}_{r, w}} \right) \times 100
-$$
-
-* **Contract Output**: Formatted with sign and 1 decimal place: `+21.0% vs similar-length routes this week`.
-
----
 
 ## 4. AI / RAG & Anti-Hallucination Guardrails
 
